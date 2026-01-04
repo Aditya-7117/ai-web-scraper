@@ -32,11 +32,15 @@ An AI-powered web scraping application that extracts content from websites and e
 
 \## How to Run
 
+
+
 ```bash
 
 pip install -r requirements.txt
 
 streamlit run app.py
+
+```
 
 
 
@@ -55,6 +59,8 @@ streamlit run app.py
 
 
 \## Screenshots
+
+
 
 \### Home
 
