@@ -40,3 +40,45 @@ streamlit run app.py
 
 
 
+\## Architecture Flow
+
+1\. User provides website URL
+
+2\. Dynamic/static content is scraped using Requests/Selenium
+
+3\. Content is cleaned and parsed
+
+4\. LLM performs semantic analysis (summary, Q\&A, insights)
+
+5\. Results displayed via Streamlit UI
+
+
+
+\## Screenshots
+
+\### Home
+
+!\[Home](screenshots/home.png)
+
+
+
+\### Scraped Content
+
+!\[Scrape](screenshots/scrape\_result.png)
+
+
+
+\### AI Summary
+
+!\[Summary](screenshots/ai\_summary.png)
+
+
+
+\## Security Note
+
+\- No API keys are stored in code
+
+\- Users provide their own LLM API keys per session
+
+
+
