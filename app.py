@@ -2,6 +2,7 @@ import streamlit as st
 from backend.parser import WebParser
 from backend.gemini_handler import GeminiHandler
 import time
+import os
 
 
 # Page configuration
@@ -67,11 +68,11 @@ with st.sidebar:
     # API Key input
     api_key = st.text_input(
         "Gemini API Key",
-        value="AIzaSyDW4OcSo-j-IVflGK-KZ-9etCH2ULJb9io",
-        type="password",
-        help="Enter your Gemini API key"
+        value=os.getenv("GEMINI_API_KEY", ""),
+        placeholder="Enter your Gemini API key",
+        type="password"
     )
-    
+
     st.divider()
     
     st.header("📋 Options")
