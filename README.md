@@ -1,90 +1,113 @@
-\# AI Web Scraper \& Analyzer
+# AI Web Scraper & Analyzer
 
+An AI-powered web scraping platform that extracts website content, enables AI-driven analysis, provides grounded answers with hyperlinks using RAG, and supports historical website analysis using Web Archives.
 
+---
 
-An AI-powered web scraping application that extracts content from websites and enables semantic analysis using Large Language Models.
+## Features
 
+* Static & dynamic website scraping
+* Selenium-based rendering for JavaScript-heavy websites
+* AI-powered summarization and contextual Q&A
+* RAG pipeline with source hyperlinks
+* Historical website comparison using Web Archives
+* Interactive Streamlit dashboard
 
+---
 
-\## Features
+## Tech Stack
 
-\- Static \& dynamic website scraping
+* Python
+* Streamlit
+* BeautifulSoup
+* Selenium
+* Requests
+* RAG (Retrieval Augmented Generation)
+* Wayback Machine API
+* LLM Integration (Gemini / OpenAI / Groq)
 
-\- Selenium-based rendering
+---
 
-\- AI-powered summarization and Q\&A
+## How to Run
 
-\- Streamlit interactive UI
+Clone the repository
 
+git clone https://github.com/Aditya-7117/ai-web-scraper.git
 
+Move into the project folder
 
-\## Tech Stack
+cd ai-web-scraper
 
-\- Python
+Create virtual environment
 
-\- Selenium, BeautifulSoup
+python -m venv venv
 
-\- Streamlit
+Activate virtual environment
 
-\- Gemini LLM
+Windows
+venv\Scripts\activate
 
-
-
-\## How to Run
-
-
-
-```bash
+Install dependencies
 
 pip install -r requirements.txt
 
+Run the application
+
 streamlit run app.py
 
-```
+The application will start at
 
+http://localhost:8501
 
+---
 
-\## Architecture Flow
+## Architecture Flow
 
-1\. User provides website URL
+1. User provides a website URL
+2. Website content is scraped using Requests or Selenium
+3. Content is cleaned and parsed using BeautifulSoup
+4. RAG pipeline retrieves relevant context and hyperlinks
+5. LLM performs summarization and contextual Q&A
+6. Optional historical analysis compares past snapshots using Web Archives
+7. Results are displayed through the Streamlit interface
 
-2\. Dynamic/static content is scraped using Requests/Selenium
+---
 
-3\. Content is cleaned and parsed
+## Screenshots
 
-4\. LLM performs semantic analysis (summary, Q\&A, insights)
+### Home
 
-5\. Results displayed via Streamlit UI
+![Home](screenshots/home.png)
 
+### Scraped Content
 
+![Scrape](screenshots/scrape_result.png)
 
-\## Screenshots
+### AI Summary
 
+![Summary](screenshots/ai_summary.png)
 
+---
 
-\### Home
+## Security
 
-!\[Home](screenshots/home.png)
+* No API keys are stored inside the repository
+* Users provide their own LLM API keys during runtime
 
+---
 
+## Example Use Cases
 
-\### Scraped Content
+* Market research
+* Competitor website monitoring
+* Product trend analysis using Web Archives
+* Grounded AI insights with source links
 
-!\[Scrape](screenshots/scrape\_result.png)
+---
 
+## Future Improvements
 
-
-\### AI Summary
-
-!\[Summary](screenshots/ai\_summary.png)
-
-
-
-\## Security Note
-
-\- No API keys are stored in code
-
-\- Users provide their own LLM API keys per session
-
-
-
+* Distributed scraping engine
+* Scheduled scraping jobs
+* Vector database integration for large-scale RAG
+* Production deployment
