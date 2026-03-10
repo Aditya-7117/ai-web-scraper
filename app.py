@@ -1,6 +1,8 @@
 import streamlit as st
 import os
-
+import pandas as pd
+from collections import Counter
+import re
 from backend.parser import WebParser
 from backend.gemini_handler import GeminiHandler
 from backend.rag.rag_engine import RAGEngine
@@ -245,7 +247,11 @@ if st.session_state.scraped_data:
     with tab2:
         if st.session_state.gemini_handler:
             if st.button("📝 Generate Summary"):
-                st.write(st.session_state.gemini_handler.summarize()["response"])
+                summary_result = st.session_state.gemini_handler.summarize()
+                if "response" in summary_result:
+                    st.write(summary_result["response"])
+                else:
+                    st.error(f"Summary failed: {summary_result.get('error', 'Unknown error')}")
         else:
             st.info("Provide an LLM API key to enable AI analysis.")
 
@@ -283,17 +289,124 @@ if st.session_state.scraped_data:
                     result = st.session_state.wayback.analyze(years)
 
                     if result["success"]:
-                        st.success(
-                            f"Comparing {result['from_year']} → {result['to_year']}"
-                        )
+
+                        st.success(f"Comparing {result['from_year']} → {result['to_year']}")
+
+                        # =========================
+                        # Emerging / Reduced Focus
+                        # =========================
 
                         st.markdown("### 🟢 Emerging Focus Areas")
-                        st.write(", ".join(result["new_focus_terms"][:20]))
+
+                        if result["new_focus_terms"]:
+                            for k in result["new_focus_terms"]:
+                                st.write("•", k)
+                        else:
+                            st.write("No significant emerging terms detected.")
 
                         st.markdown("### 🔴 Reduced Focus Areas")
-                        st.write(", ".join(result["deprecated_terms"][:20]))
+
+                        if result["deprecated_terms"]:
+                            for k in result["deprecated_terms"]:
+                                st.write("•", k)
+                        else:
+                            st.write("No declining terms detected.")
+
+
+                        # =========================
+                        # Keyword Frequency Tables
+                        # =========================
+
+                        st.markdown("### 📊 Keyword Frequency Comparison")
+
+                        old_df = pd.DataFrame(
+                            list(result["top_old_keywords"].items()),
+                            columns=["Keyword", f"{result['from_year']}"]
+                        )
+
+                        new_df = pd.DataFrame(
+                            list(result["top_new_keywords"].items()),
+                            columns=["Keyword", f"{result['to_year']}"]
+                        )
+
+                        merged = pd.merge(old_df, new_df, on="Keyword", how="outer").fillna(0)
+
+                        merged["Delta"] = merged[f"{result['to_year']}"] - merged[f"{result['from_year']}"]
+
+                        merged = merged.sort_values("Delta", ascending=False)
+
+                        st.dataframe(merged, use_container_width=True)
+
+
+                        # =========================
+                        # Timeline Graph
+                        # =========================
+
+                        st.markdown("### 📈 Keyword Evolution Timeline")
+
+                        timeline = result["timeline_keywords"]
+                        all_years = result.get("all_years", [result["from_year"], result["to_year"]])
+
+                        rows = []
+                        for keyword, values in timeline.items():
+                            row = {"Keyword": keyword}
+                            for y in all_years:
+                                row[str(y)] = values.get(y, 0)
+                            rows.append(row)
+
+                        df = pd.DataFrame(rows)
+                        df = df.set_index("Keyword")
+                        
+                        st.caption(
+                            f"Keyword frequency evolution across selected years: {', '.join(map(str, all_years))}"
+                        )
+                        st.line_chart(df.T)
+
+                        # =========================
+                        # AI Research Insights
+                        # =========================
+
+                        if st.session_state.gemini_handler:
+
+                            st.markdown("### 🧠 AI Research Insights")
+
+                            prompt = f"""
+                            You are analyzing how a website changed over time.
+
+                            Year {result['from_year']} content:
+                            {result['from_text'][:2000]}
+
+                            Year {result['to_year']} content:
+                            {result['to_text'][:2000]}
+
+                            Emerging keywords:
+                            {', '.join(result['new_focus_terms'][:10])}
+
+                            Declining keywords:
+                            {', '.join(result['deprecated_terms'][:10])}
+
+                            Explain:
+
+                            1. What topics increased
+                            2. What topics decreased
+                            3. How the organization's messaging evolved
+                            4. Strategic shifts in products or services
+
+                            Write a short research-style explanation.
+                            """
+
+                            insight = st.session_state.gemini_handler.ask_question(prompt)
+
+                            # Robust handling: check for "response" key without explicitly checking "success"
+                            if insight and isinstance(insight, dict) and "response" in insight:
+                                st.write(insight["response"])
+                            else:
+                                error_msg = insight.get("error") if insight else "Unknown error"
+                                st.warning(f"AI insight generation failed: {error_msg}")
+
                     else:
                         st.error(result["error"])
+
 
 # =========================
 # HOME
