@@ -97,18 +97,38 @@ class WebParser:
         driver = None
 
         try:
+            import random
 
             chrome_options = Options()
             chrome_options.add_argument("--headless=new")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--window-size=1920,1080")
+            
+            # Stealth Mode options
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            chrome_options.add_argument("--disable-infobars")
+            
+            USER_AGENTS = [
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/119 Safari/537.36",
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/118 Safari/537.36"
+            ]
+            ua = random.choice(USER_AGENTS)
+            chrome_options.add_argument(f"user-agent={ua}")
+            
+            widths = [1366, 1440, 1920, 2560]
+            heights = [768, 900, 1080, 1440]
+            w = random.choice(widths)
+            h = random.choice(heights)
+            chrome_options.add_argument(f"--window-size={w},{h}")
 
-            # Built-in Chrome driver manager (stable)
             driver = webdriver.Chrome(options=chrome_options)
 
             driver.get(url)
+            
+            # Add script after driver loads
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
             html = driver.page_source
 

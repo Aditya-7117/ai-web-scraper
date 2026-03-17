@@ -233,18 +233,56 @@ if scrape_button and url:
 if st.session_state.scraped_data:
     data = st.session_state.scraped_data
 
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["📄 Content", "🤖 AI Analysis", "💬 Chat (RAG + Links)", "🕰️ Web Archives"]
-    )
+    tab_options = ["📄 Content", "🤖 AI Analysis", "💬 Chat (RAG + Links)", "🕰️ Web Archives"]
+    if "active_tab" not in st.session_state:
+        st.session_state.active_tab = tab_options[0]
 
-    with tab1:
+    # Inject CSS to make radio buttons look like horizontal tabs
+    st.markdown("""
+        <style>
+        div[role='radiogroup'] {
+            flex-direction: row;
+            border-bottom: 1px solid #1e293b;
+            gap: 0;
+            margin-bottom: 1rem;
+        }
+        div[role='radiogroup'] > label {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            background: transparent;
+        }
+        div[role='radiogroup'] > label:hover {
+            background: rgba(15,23,42,0.5);
+        }
+        div[role='radiogroup'] > label[data-checked='true'] {
+            background: rgba(15,23,42,0.9);
+            border: 1px solid #1e293b;
+            border-bottom-color: #38bdf8;
+            border-bottom-width: 2px;
+        }
+        /* Hide radio circle */
+        div[role='radiogroup'] > label > div:first-child {
+            display: none;
+        }
+        div[role='radiogroup'] > label > div:last-child {
+            margin-left: 0 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.radio("Navigation", tab_options, key="active_tab", horizontal=True, label_visibility="collapsed")
+
+    if st.session_state.active_tab == tab_options[0]:
         st.markdown(
             f"<div class='card'><b>{data['title']}</b><br/>{data['description']}</div>",
             unsafe_allow_html=True
         )
         st.text_area("Content", data["content"], height=400)
 
-    with tab2:
+    elif st.session_state.active_tab == tab_options[1]:
         if st.session_state.gemini_handler:
             if st.button("📝 Generate Summary"):
                 summary_result = st.session_state.gemini_handler.summarize()
@@ -255,7 +293,7 @@ if st.session_state.scraped_data:
         else:
             st.info("Provide an LLM API key to enable AI analysis.")
 
-    with tab3:
+    elif st.session_state.active_tab == tab_options[2]:
         question = st.chat_input("Ask a question about this website...")
         if question:
             rag = st.session_state.rag_engine
@@ -272,8 +310,29 @@ if st.session_state.scraped_data:
             else:
                 st.warning("No relevant grounded information found.")
 
-    with tab4:
+    elif st.session_state.active_tab == tab_options[3]:
         st.subheader("Historical Website Analysis")
+        
+        from backend.archive.archive_tester import find_archive_compatible_sites
+        from backend.archive.demo_domains import ALL_DEMO_DOMAINS
+        
+        # Initialize session state for compatible sites
+        if "compatible_sites_cache" not in st.session_state:
+            st.session_state.compatible_sites_cache = []
+
+        col_btn1, col_btn2 = st.columns([1, 2])
+        with col_btn1:
+            if st.button("🔎 Find Compatible Websites", use_container_width=True):
+                with st.spinner("Scanning CDX API for compatibility..."):
+                    st.session_state.compatible_sites_cache = find_archive_compatible_sites(ALL_DEMO_DOMAINS)
+                    
+        # Render non-blocking cache
+        cached_sites = st.session_state.compatible_sites_cache
+        if cached_sites:
+            st.markdown("### 🏆 Compatible Websites:")
+            for site in cached_sites[:10]:
+                k_shots = f"{int(site['snapshot_count']/1000)}k" if site['snapshot_count'] >= 1000 else f"{site['snapshot_count']}"
+                st.write(f"**{site['domain']}** — {k_shots} snapshots")
 
         if not use_archives:
             st.info("Enable Web Archive Analysis from the sidebar.")
@@ -284,31 +343,44 @@ if st.session_state.scraped_data:
                 default=[2019, 2024]
             )
 
+            col1, col2 = st.columns(2)
+            with col1:
+                analysis_mode = st.selectbox(
+                    "Analysis Mode",
+                    options=["Auto", "Marketing", "Fashion", "Ecommerce", "Sports", "Finance", "News"],
+                    index=0
+                )
+            with col2:
+                # Add flag: USE_LLM = False (default)
+                use_llm = st.checkbox("Generate Deep LLM Insights", value=False)
+
             if st.button("Analyze History"):
                 with st.spinner("Fetching historical snapshots..."):
-                    result = st.session_state.wayback.analyze(years)
+                    result = st.session_state.wayback.analyze(years, domain_mode=analysis_mode.lower())
 
                     if result["success"]:
+                        if result.get("warning"):
+                            st.warning(result["warning"])
 
-                        st.success(f"Comparing {result['from_year']} → {result['to_year']}")
+                        st.success(f"Comparing {result['from_year']} → {result['to_year']} (Mode: {analysis_mode})")
 
                         # =========================
                         # Emerging / Reduced Focus
                         # =========================
 
-                        st.markdown("### 🟢 Emerging Focus Areas")
+                        st.markdown("### 🟢 Emerging Trends (Top 10)")
 
                         if result["new_focus_terms"]:
                             for k in result["new_focus_terms"]:
-                                st.write("•", k)
+                                st.write("•", k.title())
                         else:
                             st.write("No significant emerging terms detected.")
 
-                        st.markdown("### 🔴 Reduced Focus Areas")
+                        st.markdown("### 🔴 Declining Trends (Top 10)")
 
                         if result["deprecated_terms"]:
                             for k in result["deprecated_terms"]:
-                                st.write("•", k)
+                                st.write("•", k.title())
                         else:
                             st.write("No declining terms detected.")
 
@@ -321,17 +393,17 @@ if st.session_state.scraped_data:
 
                         old_df = pd.DataFrame(
                             list(result["top_old_keywords"].items()),
-                            columns=["Keyword", f"{result['from_year']}"]
+                            columns=["Keyword", f"{result['from_year']} Score"]
                         )
 
                         new_df = pd.DataFrame(
                             list(result["top_new_keywords"].items()),
-                            columns=["Keyword", f"{result['to_year']}"]
+                            columns=["Keyword", f"{result['to_year']} Score"]
                         )
 
                         merged = pd.merge(old_df, new_df, on="Keyword", how="outer").fillna(0)
 
-                        merged["Delta"] = merged[f"{result['to_year']}"] - merged[f"{result['from_year']}"]
+                        merged["Delta"] = merged[f"{result['to_year']} Score"] - merged[f"{result['from_year']} Score"]
 
                         merged = merged.sort_values("Delta", ascending=False)
 
@@ -365,9 +437,13 @@ if st.session_state.scraped_data:
                         # =========================
                         # AI Research Insights
                         # =========================
+                        
+                        def generate_rule_based_summary(emerging, declining):
+                            emerging_str = ", ".join(emerging[:3]) if emerging else "none"
+                            declining_str = ", ".join(declining[:3]) if declining else "none"
+                            return f"Emerging trends include {emerging_str}. Declining trends include {declining_str}."
 
-                        if st.session_state.gemini_handler:
-
+                        if use_llm and st.session_state.gemini_handler:
                             st.markdown("### 🧠 AI Research Insights")
 
                             prompt = f"""
@@ -395,14 +471,19 @@ if st.session_state.scraped_data:
                             Write a short research-style explanation.
                             """
 
-                            insight = st.session_state.gemini_handler.ask_question(prompt)
+                            try:
+                                insight = st.session_state.gemini_handler.ask_question(prompt)
+                                if insight and isinstance(insight, dict) and "response" in insight:
+                                    st.write(insight["response"])
+                                else:
+                                    raise Exception("Empty or invalid response")
+                            except Exception as e:
+                                st.warning(f"LLM Quota Exceeded or API Failure. Falling back to rule-based summary. ({str(e)})")
+                                st.info(generate_rule_based_summary(result['new_focus_terms'], result['deprecated_terms']))
 
-                            # Robust handling: check for "response" key without explicitly checking "success"
-                            if insight and isinstance(insight, dict) and "response" in insight:
-                                st.write(insight["response"])
-                            else:
-                                error_msg = insight.get("error") if insight else "Unknown error"
-                                st.warning(f"AI insight generation failed: {error_msg}")
+                        else:
+                            st.markdown("### 📊 Trend Summary (Rule-Based)")
+                            st.info(generate_rule_based_summary(result["new_focus_terms"], result["deprecated_terms"]))
 
                     else:
                         st.error(result["error"])
