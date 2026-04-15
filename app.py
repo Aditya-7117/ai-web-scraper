@@ -233,7 +233,7 @@ if scrape_button and url:
 if st.session_state.scraped_data:
     data = st.session_state.scraped_data
 
-    tab_options = ["📄 Content", "🤖 AI Analysis", "💬 Chat (RAG + Links)", "🕰️ Web Archives"]
+    tab_options = ["📄 Content", "🤖 AI Analysis", "💬 Chat (RAG + Links)", "🕰️ Web Archives", "🔬 Market Research"]
     if "active_tab" not in st.session_state:
         st.session_state.active_tab = tab_options[0]
 
@@ -488,6 +488,130 @@ if st.session_state.scraped_data:
                     else:
                         st.error(result["error"])
 
+    elif st.session_state.active_tab == tab_options[4]:
+        # =========================
+        # MARKET RESEARCH TAB
+        # =========================
+        st.subheader("🔬 Competitor / Market Research")
+
+        competitor_urls = st.text_area(
+            "Enter up to 5 competitor URLs (one per line)",
+            height=150,
+            placeholder="https://competitor1.com\nhttps://competitor2.com",
+        )
+
+        if st.button("🔍 Analyze Competitors", use_container_width=True):
+            raw_urls = [u.strip() for u in competitor_urls.strip().splitlines() if u.strip()]
+            urls = raw_urls[:5]
+
+            if not urls:
+                st.warning("Please enter at least one URL.")
+            else:
+                # Stopwords for keyword filtering
+                STOPWORDS = {
+                    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
+                    "for", "of", "with", "by", "is", "are", "was", "were", "be",
+                    "been", "being", "have", "has", "had", "do", "does", "did",
+                    "will", "would", "could", "should", "may", "might", "shall",
+                    "it", "its", "this", "that", "these", "those", "i", "me",
+                    "my", "we", "our", "you", "your", "he", "she", "they",
+                    "them", "his", "her", "not", "no", "all", "each", "from",
+                    "as", "if", "so", "than", "too", "very", "can", "just",
+                    "about", "up", "out", "more", "also", "how", "what",
+                    "when", "where", "which", "who", "why", "new", "us",
+                    "get", "one", "two", "use", "any", "into", "only",
+                }
+
+                research_parser = WebParser()
+                competitor_data = []
+
+                progress = st.progress(0)
+                for idx, comp_url in enumerate(urls):
+                    with st.spinner(f"Scraping {comp_url}..."):
+                        try:
+                            comp_result = research_parser.scrape_with_requests(comp_url)
+                            if comp_result["success"]:
+                                words = re.findall(r"[a-z]+", comp_result["content"].lower())
+                                filtered = [w for w in words if w not in STOPWORDS and len(w) > 2]
+                                word_freq = Counter(filtered)
+                                top_20 = word_freq.most_common(20)
+
+                                competitor_data.append({
+                                    "url": comp_url,
+                                    "domain": comp_url.split("//")[-1].split("/")[0],
+                                    "keywords": top_20,
+                                    "word_count": len(words),
+                                })
+                            else:
+                                st.warning(f"⚠️ Failed to scrape {comp_url}: {comp_result.get('error', 'Unknown error')}")
+                        except Exception as exc:
+                            st.warning(f"⚠️ Error scraping {comp_url}: {exc}")
+
+                    progress.progress((idx + 1) / len(urls))
+
+                if competitor_data:
+                    # Comparison table
+                    st.markdown("### 📊 Competitor Comparison")
+
+                    table_rows = []
+                    for cd in competitor_data:
+                        kw_str = ", ".join([f"{k} ({v})" for k, v in cd["keywords"][:10]])
+                        table_rows.append({
+                            "Domain": cd["domain"],
+                            "Top Keywords": kw_str,
+                            "Word Count": cd["word_count"],
+                        })
+
+                    st.dataframe(pd.DataFrame(table_rows), use_container_width=True)
+
+                    # Competitive positioning summary
+                    st.markdown("### 🧠 Competitive Positioning")
+
+                    if st.session_state.gemini_handler:
+                        # LLM-based summary
+                        comp_summary_parts = []
+                        for cd in competitor_data:
+                            top_kw = ", ".join([k for k, _ in cd["keywords"][:10]])
+                            comp_summary_parts.append(
+                                f"- {cd['domain']}: {cd['word_count']} words. Top keywords: {top_kw}"
+                            )
+
+                        prompt = (
+                            "You are a market research analyst. Based on the following competitor website data, "
+                            "write a 3-sentence competitive positioning summary.\n\n"
+                            + "\n".join(comp_summary_parts)
+                        )
+
+                        try:
+                            insight = st.session_state.gemini_handler.ask_question(prompt)
+                            if insight and isinstance(insight, dict) and insight.get("success") and "response" in insight:
+                                st.write(insight["response"])
+                            else:
+                                raise Exception(insight.get("error", "Empty response"))
+                        except Exception as e:
+                            st.warning(f"LLM failed ({e}). Falling back to rule-based summary.")
+                            # Fallback
+                            largest = max(competitor_data, key=lambda x: x["word_count"])
+                            all_kw_lists = [set(k for k, _ in cd["keywords"]) for cd in competitor_data]
+                            shared = set.intersection(*all_kw_lists) if len(all_kw_lists) > 1 else set()
+                            shared_str = ", ".join(list(shared)[:10]) if shared else "none detected"
+                            st.info(
+                                f"{largest['domain']} has the most content ({largest['word_count']} words). "
+                                f"Shared keywords across competitors: {shared_str}."
+                            )
+                    else:
+                        # Rule-based summary (no API key)
+                        largest = max(competitor_data, key=lambda x: x["word_count"])
+                        all_kw_lists = [set(k for k, _ in cd["keywords"]) for cd in competitor_data]
+                        shared = set.intersection(*all_kw_lists) if len(all_kw_lists) > 1 else set()
+                        shared_str = ", ".join(list(shared)[:10]) if shared else "none detected"
+                        st.info(
+                            f"{largest['domain']} has the most content ({largest['word_count']} words). "
+                            f"Shared keywords across competitors: {shared_str}."
+                        )
+                else:
+                    st.error("No competitor sites could be scraped successfully.")
+
 
 # =========================
 # HOME
@@ -500,6 +624,7 @@ else:
         <div class="card"><b>📚 RAG with Sources</b><br/>Answers with direct hyperlinks</div>
         <div class="card"><b>🧠 AI Analysis</b><br/>Summaries & insights</div>
         <div class="card"><b>🕰️ Web Archives</b><br/>Historical trend comparison</div>
+        <div class="card"><b>🔬 Market Research</b><br/>Competitor keyword analysis</div>
     </div>
     """, unsafe_allow_html=True)
 
